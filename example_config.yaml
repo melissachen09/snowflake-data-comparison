@@ -1,0 +1,80 @@
+# Example Configuration for Cross-Environment Data Comparison
+# Copy this to config.yaml and update with your actual connection details
+
+# Legacy Environment (SSIS Pipeline Output)
+legacy_snowflake:
+  account: "abc12345.us-east-1.snowflakecomputing.com"  # Your legacy account
+  user: "DATA_ENGINEER"
+  password: "${LEGACY_SNOWFLAKE_PASSWORD}"  # Use environment variables for security
+  warehouse: "LEGACY_COMPUTE_WH"
+  role: "DATA_ANALYST_ROLE"
+  database: "LEGACY_PROD_DB"
+  schema: "DW_PROD"  # Schema where SSIS outputs data
+
+# New Environment (Airflow/dbt Pipeline Output)  
+new_snowflake:
+  account: "xyz67890.us-west-2.snowflakecomputing.com"  # Your new modern account
+  user: "PIPELINE_USER"
+  password: "${NEW_SNOWFLAKE_PASSWORD}"  # Use environment variables for security
+  warehouse: "MODERN_COMPUTE_WH"
+  role: "PIPELINE_ROLE"
+  database: "MODERN_PROD_DB"
+  schema: "DW_PROD"  # Schema where Airflow/dbt outputs data
+
+# Tables to compare between environments
+tables:
+  # Customer dimension table
+  - name: DIM_CUSTOMER
+    keys: [customer_key]
+    # Optionally exclude columns that might differ (timestamps, etc.)
+    # exclude_columns: [updated_at, etl_timestamp]
+    
+  # Product dimension table  
+  - name: DIM_PRODUCT
+    keys: [product_key]
+    
+  # Sales fact table
+  - name: FACT_SALES
+    keys: [sale_id]
+    
+  # Order fact table with composite key
+  - name: FACT_ORDERS
+    keys: [order_id, line_item_id]
+    
+  # Date dimension
+  - name: DIM_DATE
+    keys: [date_key]
+    
+  # Complex table with multiple keys
+  - name: FACT_INVENTORY_SNAPSHOTS
+    keys: [snapshot_date, warehouse_id, product_id]
+
+# Comparison settings
+comparison:
+  # Maximum number of row differences to display per table
+  max_diffs: 500
+  
+  # Include detailed row-level differences in reports
+  include_row_diffs: true
+  
+  # Timeout for each table comparison (seconds)
+  timeout_seconds: 600  # 10 minutes for large tables
+
+# Output configuration
+output:
+  # Generate markdown summary report
+  summary_report: true
+  
+  # Export detailed results to CSV files
+  export_csv: true
+  
+  # Export results to Snowflake validation table (stored in new environment)
+  export_to_snowflake: true
+  validation_table: "DATA_VALIDATION_RESULTS"
+
+# Optional: Environment-specific settings
+environments:
+  description: "SSIS Legacy vs Airflow/dbt Modern Pipeline Comparison"
+  legacy_environment_name: "Legacy SSIS Environment"
+  new_environment_name: "Modern Airflow/dbt Environment"
+  comparison_purpose: "Pipeline Migration Validation"
