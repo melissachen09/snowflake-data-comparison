@@ -26,28 +26,64 @@ tables:
   # Customer dimension table
   - name: DIM_CUSTOMER
     keys: [customer_key]
-    # Optionally exclude columns that might differ (timestamps, etc.)
-    # exclude_columns: [updated_at, etl_timestamp]
+    # Exclude audit columns that will differ between systems
+    exclude_columns: [created_date, modified_date, last_updated_by, source_file_name]
     
   # Product dimension table  
   - name: DIM_PRODUCT
     keys: [product_key]
+    # Exclude ETL-specific columns
+    exclude_columns: [etl_load_date, batch_number, record_version]
     
   # Sales fact table
   - name: FACT_SALES
     keys: [sale_id]
+    # Exclude system-generated timestamps and processing metadata
+    exclude_columns: [row_insert_timestamp, row_update_timestamp, processing_date, data_source_id]
     
   # Order fact table with composite key
   - name: FACT_ORDERS
     keys: [order_id, line_item_id]
+    # Exclude columns that might have different precision or formats
+    exclude_columns: [created_datetime, updated_datetime, hash_key, surrogate_key]
     
   # Date dimension
   - name: DIM_DATE
     keys: [date_key]
+    # No exclusions needed for this reference table
+    # exclude_columns: []
     
   # Complex table with multiple keys
   - name: FACT_INVENTORY_SNAPSHOTS
     keys: [snapshot_date, warehouse_id, product_id]
+    # Exclude columns that are calculated differently in each system
+    exclude_columns: [snapshot_created_at, calculation_method, system_version]
+
+# Global column exclusions (applied to ALL tables in addition to table-specific exclusions)
+global_exclude_columns:
+  # Common audit/metadata columns to exclude from all comparisons
+  - etl_insert_date          # ETL process timestamp
+  - etl_update_date          # ETL process timestamp  
+  - etl_batch_id             # ETL batch identifier
+  - etl_source_system        # Source system identifier
+  - created_by_system        # System that created the record
+  - updated_by_system        # System that updated the record
+  - record_hash              # Hash values may differ
+  - data_lineage_id          # Lineage tracking IDs
+  - process_id               # Process identifiers
+  - load_timestamp           # Load timestamps
+  - file_name                # Source file names
+  - _fivetran_synced         # Fivetran-specific columns
+  - _dbt_source_relation     # dbt-specific columns
+  - dbt_updated_at           # dbt-specific columns
+  - _airbyte_ab_id          # Airbyte-specific columns
+  - _airbyte_emitted_at     # Airbyte-specific columns
+  - _stg_hash_key           # Staging hash keys
+  - _effective_from         # SCD Type 2 columns (if implementation differs)
+  - _effective_to           # SCD Type 2 columns (if implementation differs)
+  - _current_flag           # SCD Type 2 columns (if implementation differs)
+  - sys_created_date        # System created dates
+  - sys_modified_date       # System modified dates
 
 # Comparison settings
 comparison:

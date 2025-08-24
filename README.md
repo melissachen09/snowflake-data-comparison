@@ -78,10 +78,19 @@ new_snowflake:
 tables:
   - name: CUSTOMERS
     keys: [customer_id]
+    # Exclude specific columns from comparison (audit columns, timestamps, etc.)
+    exclude_columns: [updated_at, created_at, etl_timestamp, last_modified_by]
   - name: ORDERS
     keys: [order_id]
-  - name: ORDER_ITEMS
-    keys: [order_id, item_id]
+    exclude_columns: [created_date, modified_date, source_system_id]
+
+# Global exclusions applied to ALL tables
+global_exclude_columns:
+  - etl_insert_date
+  - etl_update_date
+  - etl_batch_id
+  - _fivetran_synced
+  - _dbt_source_relation
 ```
 
 ### 3. Basic Usage
@@ -153,9 +162,31 @@ new_snowflake:
 ```yaml
 tables:
   - name: TABLE_NAME
-    keys: [primary_key]           # Required: columns that uniquely identify rows
-    exclude_columns: [col1, col2] # Optional: columns to ignore in comparison
+    keys: [primary_key]                    # Required: columns that uniquely identify rows
+    exclude_columns: [col1, col2]          # Optional: table-specific columns to ignore
 ```
+
+### Global Column Exclusions
+
+```yaml
+global_exclude_columns:
+  # Applied to ALL tables in addition to table-specific exclusions
+  - etl_insert_date
+  - etl_update_date
+  - etl_batch_id
+  - created_by_system
+  - updated_by_system
+  - _fivetran_synced    # Tool-specific columns
+  - _dbt_source_relation
+  - _airbyte_ab_id
+```
+
+**Common columns to exclude:**
+- **Audit columns**: `created_date`, `modified_date`, `updated_by`
+- **ETL metadata**: `etl_batch_id`, `load_timestamp`, `process_id`
+- **System-generated**: `record_hash`, `surrogate_key`, `row_number`
+- **Tool-specific**: `_fivetran_synced`, `_dbt_source_relation`, `_airbyte_emitted_at`
+- **Timestamps**: `row_insert_timestamp`, `last_processed_date`
 
 ### Comparison Settings
 
@@ -216,6 +247,44 @@ output:
 - `2`: Fatal error (configuration issues, connection failures)
 
 ## 🔧 Advanced Usage
+
+### Column Exclusions
+
+The framework supports two levels of column exclusions:
+
+#### 1. Table-Specific Exclusions
+Exclude columns for specific tables only:
+
+```yaml
+tables:
+  - name: CUSTOMER_DIM
+    keys: [customer_key]
+    exclude_columns: [last_updated_date, created_by_user, audit_timestamp]
+```
+
+#### 2. Global Exclusions
+Exclude columns from ALL table comparisons:
+
+```yaml
+global_exclude_columns:
+  - etl_insert_date
+  - etl_update_date  
+  - etl_batch_id
+  - record_hash
+```
+
+#### 3. Combined Usage
+Both exclusion types work together. The framework will exclude:
+- All columns listed in `global_exclude_columns`
+- Plus any columns listed in table-specific `exclude_columns`
+- Duplicates are automatically removed
+
+**Example log output with exclusions:**
+```
+INFO - Comparing table: CUSTOMERS
+INFO - Excluding columns: etl_insert_date, etl_update_date, created_date, modified_date
+INFO - ✓ CUSTOMERS: PASSED - No differences found
+```
 
 ### Running Specific Tables
 

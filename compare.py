@@ -81,12 +81,37 @@ class SnowflakeDataComparer:
             f"?warehouse={sf_config['warehouse']}&role={sf_config['role']}"
         )
     
+    def _get_excluded_columns(self, table_config: Dict[str, Any]) -> List[str]:
+        """Get list of columns to exclude from comparison"""
+        excluded_columns = []
+        
+        # Add global exclusions
+        global_excludes = self.config.get('global_exclude_columns', [])
+        excluded_columns.extend(global_excludes)
+        
+        # Add table-specific exclusions
+        table_excludes = table_config.get('exclude_columns', [])
+        excluded_columns.extend(table_excludes)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_excludes = []
+        for col in excluded_columns:
+            if col.upper() not in seen:
+                seen.add(col.upper())
+                unique_excludes.append(col)
+        
+        return unique_excludes
+
     def compare_table(self, table_config: Dict[str, Any]) -> Dict[str, Any]:
         """Compare a single table between legacy and new environments"""
         table_name = table_config['name']
         keys = table_config['keys']
+        excluded_columns = self._get_excluded_columns(table_config)
         
         self.logger.info(f"Comparing table: {table_name}")
+        if excluded_columns:
+            self.logger.info(f"Excluding columns: {', '.join(excluded_columns)}")
         
         try:
             # Build connection strings for both environments
@@ -105,9 +130,20 @@ class SnowflakeDataComparer:
                 table_name
             )
             
-            # Perform comparison
+            # Perform comparison with column exclusions
             start_time = datetime.now()
-            diffs = list(diff_tables(legacy_table, new_table, on=keys))
+            
+            # Use exclude parameter if columns need to be excluded
+            if excluded_columns:
+                diffs = list(diff_tables(
+                    legacy_table, 
+                    new_table, 
+                    on=keys,
+                    exclude_columns=excluded_columns
+                ))
+            else:
+                diffs = list(diff_tables(legacy_table, new_table, on=keys))
+                
             end_time = datetime.now()
             
             # Process results
@@ -124,7 +160,9 @@ class SnowflakeDataComparer:
                 "timestamp": datetime.now().isoformat(),
                 "diffs": [str(d) for d in diffs[:self.config.get('comparison', {}).get('max_diffs', 1000)]],
                 "legacy_environment": self.config['legacy_snowflake']['account'],
-                "new_environment": self.config['new_snowflake']['account']
+                "new_environment": self.config['new_snowflake']['account'],
+                "excluded_columns": excluded_columns,
+                "excluded_columns_count": len(excluded_columns)
             }
             
             if result["status"] == "PASS":
@@ -147,7 +185,9 @@ class SnowflakeDataComparer:
                 "error": str(e),
                 "timestamp": datetime.now().isoformat(),
                 "legacy_environment": self.config.get('legacy_snowflake', {}).get('account', 'unknown'),
-                "new_environment": self.config.get('new_snowflake', {}).get('account', 'unknown')
+                "new_environment": self.config.get('new_snowflake', {}).get('account', 'unknown'),
+                "excluded_columns": excluded_columns,
+                "excluded_columns_count": len(excluded_columns)
             }
     
     def compare_all_tables(self) -> List[Dict[str, Any]]:
@@ -296,7 +336,9 @@ Generated: {timestamp}
                     'LEGACY_DATABASE': self.config['legacy_snowflake']['database'],
                     'NEW_DATABASE': self.config['new_snowflake']['database'],
                     'LEGACY_SCHEMA': self.config['legacy_snowflake']['schema'],
-                    'NEW_SCHEMA': self.config['new_snowflake']['schema']
+                    'NEW_SCHEMA': self.config['new_snowflake']['schema'],
+                    'EXCLUDED_COLUMNS': ', '.join(result.get('excluded_columns', [])),
+                    'EXCLUDED_COLUMNS_COUNT': result.get('excluded_columns_count', 0)
                 })
             
             # Convert to DataFrame
@@ -323,6 +365,8 @@ Generated: {timestamp}
                 NEW_DATABASE VARCHAR(100),
                 LEGACY_SCHEMA VARCHAR(100),
                 NEW_SCHEMA VARCHAR(100),
+                EXCLUDED_COLUMNS TEXT,
+                EXCLUDED_COLUMNS_COUNT INTEGER,
                 CREATED_AT TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP()
             )
             """
