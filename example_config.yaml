@@ -5,7 +5,8 @@
 legacy_snowflake:
   account: "abc12345.us-east-1.snowflakecomputing.com"  # Your legacy account
   user: "DATA_ENGINEER"
-  password: "${LEGACY_SNOWFLAKE_PASSWORD}"  # Use environment variables for security
+  private_key_path: "${LEGACY_SNOWFLAKE_PRIVATE_KEY_PATH}"  # Path to private key file
+  private_key_passphrase: "${LEGACY_SNOWFLAKE_KEY_PASSPHRASE}"  # Optional: only if key is encrypted
   warehouse: "LEGACY_COMPUTE_WH"
   role: "DATA_ANALYST_ROLE"
   database: "LEGACY_PROD_DB"
@@ -15,7 +16,8 @@ legacy_snowflake:
 new_snowflake:
   account: "xyz67890.us-west-2.snowflakecomputing.com"  # Your new modern account
   user: "PIPELINE_USER"
-  password: "${NEW_SNOWFLAKE_PASSWORD}"  # Use environment variables for security
+  private_key_path: "${NEW_SNOWFLAKE_PRIVATE_KEY_PATH}"  # Path to private key file
+  private_key_passphrase: "${NEW_SNOWFLAKE_KEY_PASSPHRASE}"  # Optional: only if key is encrypted
   warehouse: "MODERN_COMPUTE_WH"
   role: "PIPELINE_ROLE"
   database: "MODERN_PROD_DB"

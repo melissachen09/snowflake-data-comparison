@@ -21,6 +21,9 @@ from tabulate import tabulate
 import pandas as pd
 import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.backends import default_backend
 
 
 class SnowflakeDataComparer:
@@ -66,6 +69,28 @@ class SnowflakeDataComparer:
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Starting data comparison - Log file: {log_file}")
     
+    def _load_private_key(self, private_key_path: str, passphrase: str = None) -> bytes:
+        """Load and encode private key for Snowflake authentication"""
+        with open(private_key_path, "rb") as key_file:
+            if passphrase:
+                private_key = load_pem_private_key(
+                    key_file.read(),
+                    password=passphrase.encode() if isinstance(passphrase, str) else passphrase,
+                    backend=default_backend()
+                )
+            else:
+                private_key = load_pem_private_key(
+                    key_file.read(),
+                    password=None,
+                    backend=default_backend()
+                )
+            
+            return private_key.private_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+    
     def _build_connection_string(self, env_type: str) -> str:
         """Build Snowflake connection string for legacy or new environment"""
         if env_type == "legacy":
@@ -75,10 +100,11 @@ class SnowflakeDataComparer:
         else:
             raise ValueError(f"Invalid environment type: {env_type}")
             
+        # For keypair auth, data_diff requires special URL format
         return (
-            f"snowflake://{sf_config['user']}:{sf_config['password']}"
-            f"@{sf_config['account']}/{sf_config['database']}/{sf_config['schema']}"
-            f"?warehouse={sf_config['warehouse']}&role={sf_config['role']}"
+            f"snowflake://{sf_config['user']}@{sf_config['account']}"
+            f"/{sf_config['database']}/{sf_config['schema']}"
+            f"?warehouse={sf_config['warehouse']}&role={sf_config['role']}&authenticator=snowflake_jwt"
         )
     
     def _get_excluded_columns(self, table_config: Dict[str, Any]) -> List[str]:
@@ -304,10 +330,17 @@ Generated: {timestamp}
             
             # Create connection to new environment
             sf_config = self.config['new_snowflake']
+            
+            # Load private key
+            private_key = self._load_private_key(
+                sf_config['private_key_path'],
+                sf_config.get('private_key_passphrase')
+            )
+            
             conn = snowflake.connector.connect(
                 account=sf_config['account'],
                 user=sf_config['user'],
-                password=sf_config['password'],
+                private_key=private_key,
                 warehouse=sf_config['warehouse'],
                 database=sf_config['database'],
                 schema=sf_config['schema'],
